@@ -9,6 +9,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { createRequire } from 'module';
 
 import { registerWriteTools } from './tools/write.js';
 import { registerReadTools } from './tools/read.js';
@@ -16,9 +17,13 @@ import { registerInfoTools } from './tools/info.js';
 import { registerManageTools } from './tools/manage.js';
 import { registerEncodeTools } from './tools/encode.js';
 
+// 动态读取 package.json 版本号
+const require = createRequire(import.meta.url);
+const packageJson = require('../package.json');
+
 const server = new McpServer({
   name: 'agent-file-control-mcp-server',
-  version: '1.0.0'
+  version: packageJson.version
 });
 
 registerWriteTools(server);
