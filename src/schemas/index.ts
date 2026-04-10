@@ -81,6 +81,20 @@ export const DecodeB64Schema = z.object({
   encoding: z.string().default('utf-8').describe('Text encoding for output')
 }).strict();
 
+export const WriteGeneratedSchema = z.object({
+  path: z.string().describe('Target file absolute path'),
+  generator: z.string().describe('Generator type (e.g., "go-constants", "python-constants", "json-config")'),
+  input: z.record(z.any()).describe('Generator input parameters (structure depends on generator type)'),
+  encoding: z.string().default('utf-8').describe('File text encoding'),
+  executable: z.boolean().default(false).describe('Set chmod +x permission'),
+  create_dirs: z.boolean().default(true).describe('Auto-create parent directories'),
+  dry_run: z.boolean().default(false).describe('Preview generated content without writing')
+}).strict();
+
+export const ListGeneratorsSchema = z.object({
+  detailed: z.boolean().default(false).describe('Include full info with examples')
+}).strict();
+
 export type WriteFileInput = z.infer<typeof WriteFileSchema>;
 export type AppendFileInput = z.infer<typeof AppendFileSchema>;
 export type ReadFileInput = z.infer<typeof ReadFileSchema>;
@@ -93,3 +107,5 @@ export type DeleteInput = z.infer<typeof DeleteSchema>;
 export type MkdirInput = z.infer<typeof MkdirSchema>;
 export type EncodeStringInput = z.infer<typeof EncodeStringSchema>;
 export type DecodeB64Input = z.infer<typeof DecodeB64Schema>;
+export type WriteGeneratedInput = z.infer<typeof WriteGeneratedSchema>;
+export type ListGeneratorsInput = z.infer<typeof ListGeneratorsSchema>;

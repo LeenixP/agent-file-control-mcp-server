@@ -4,7 +4,11 @@
  * 
  * Complete file control MCP server using base64 encoding to bypass JSON parsing issues.
  * Supports: write, append, read, search/replace, line patch, file info, directory list,
- *           copy, move, delete, mkdir, and encoding utilities.
+ *           copy, move, delete, mkdir, encoding utilities, and file generators.
+ * 
+ * Generators: go-constants, go-struct, go-interface, python-constants, python-class,
+ *             typescript-interface, typescript-constants, json-config, yaml-config,
+ *             shell-script, html-template, css-styles, markdown-doc, dockerfile, gitignore
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -16,8 +20,8 @@ import { registerReadTools } from './tools/read.js';
 import { registerInfoTools } from './tools/info.js';
 import { registerManageTools } from './tools/manage.js';
 import { registerEncodeTools } from './tools/encode.js';
+import { registerGenerateTools } from './tools/generate.js';
 
-// 动态读取 package.json 版本号
 const require = createRequire(import.meta.url);
 const packageJson = require('../package.json');
 
@@ -31,6 +35,7 @@ registerReadTools(server);
 registerInfoTools(server);
 registerManageTools(server);
 registerEncodeTools(server);
+registerGenerateTools(server);
 
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
