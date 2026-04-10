@@ -1,13 +1,16 @@
 # agent-file-control MCP Server
 
-[English](#english) | 中文
+[English](README_EN.md) | 中文
 
 完整的文件控制 MCP 服务器，基于 Node.js/TypeScript 实现。使用 base64 编码完全绕过 JSON 特殊字符解析问题。
 
 ## 安装
 
 ```bash
-npm install agent-file-control-mcp-server
+npm install -g agent-file-control-mcp-server
+
+# 或使用 npx 无需安装
+npx -y agent-file-control-mcp-server
 ```
 
 或者从源码构建：
@@ -19,35 +22,107 @@ npm install
 npm run build
 ```
 
-## 使用方法
+---
 
-### 作为 stdio MCP 服务器
+## 配置方法
 
-添加到你的 MCP 配置中：
+### OpenCode 配置
+
+编辑 `~/.config/opencode/opencode.json`，在 `mcp` 字段中添加：
+
+```json
+{
+  "mcp": {
+    "agent-file-control": {
+      "type": "local",
+      "command": ["npx", "-y", "agent-file-control-mcp-server"],
+      "enabled": true
+    }
+  }
+}
+```
+
+### Claude Code 配置
+
+Claude Code 支持三种配置范围：
+
+#### 用户范围（推荐，所有项目可用）
+
+编辑 `~/.claude.json`，添加 `mcpServers` 字段：
 
 ```json
 {
   "mcpServers": {
     "agent-file-control": {
+      "type": "stdio",
       "command": "npx",
-      "args": ["agent-file-control-mcp-server"]
+      "args": ["-y", "agent-file-control-mcp-server"],
+      "env": {}
     }
   }
 }
 ```
 
-或者使用本地路径：
+或使用命令行：
+
+```bash
+claude mcp add agent-file-control -- npx -y agent-file-control-mcp-server
+```
+
+#### 项目范围（团队共享）
+
+在项目根目录创建 `.mcp.json`：
 
 ```json
 {
   "mcpServers": {
     "agent-file-control": {
-      "command": "node",
-      "args": ["/path/to/agent-file-control-mcp-server/dist/index.js"]
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "agent-file-control-mcp-server"],
+      "env": {}
     }
   }
 }
 ```
+
+或使用命令行：
+
+```bash
+claude mcp add --scope project agent-file-control -- npx -y agent-file-control-mcp-server
+```
+
+#### 本地范围（仅当前项目）
+
+```bash
+claude mcp add --scope local agent-file-control -- npx -y agent-file-control-mcp-server
+```
+
+### 使用本地路径（开发测试）
+
+```json
+{
+  "mcpServers": {
+    "agent-file-control": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/agent-file-control-mcp-server/dist/index.js"],
+      "env": {}
+    }
+  }
+}
+```
+
+---
+
+## 配置文件位置对比
+
+| 客户端 | 用户范围 | 项目范围 | 本地范围 |
+|--------|----------|----------|----------|
+| **OpenCode** | `~/.config/opencode/opencode.json` (mcp 字段) | 暂不支持 | 暂不支持 |
+| **Claude Code** | `~/.claude.json` (mcpServers) | 项目根目录 `.mcp.json` | `~/.claude.json` (projects 字段下) |
+
+---
 
 ## 可用工具
 
@@ -65,7 +140,7 @@ npm run build
 
 | 工具 | 描述 |
 |------|------|
-| `afc_file_info` | 获取文件/目录元信息 |
+| `afc_file_info` | 获取文件/目录元信息（大小、权限、行数）|
 | `afc_list_dir` | 列出目录内容（支持递归、过滤）|
 | `afc_copy` | 复制文件或目录 |
 | `afc_move` | 移动/重命名文件或目录 |
@@ -79,7 +154,9 @@ npm run build
 | `afc_encode_string` | 字符串转 base64 |
 | `afc_decode_b64` | base64 转字符串 |
 
-## Base64 编码
+---
+
+## Base64 编码示例
 
 生成文件内容的 base64 编码：
 
@@ -99,9 +176,11 @@ import base64
 print(base64.b64encode(b'内容').decode())
 ```
 
+---
+
 ## 为什么使用 Base64？
 
-OpenCode 和其他 MCP 客户端将文件内容作为 JSON 字符串传输，当内容包含以下字符时会出错：
+MCP 客户端将文件内容作为 JSON 字符串传输，当内容包含以下字符时会出错：
 - JSON 特殊字符（`"`、`\`、换行符）
 - 二进制数据
 - 包含引号和转义字符的复杂代码
@@ -110,116 +189,25 @@ Base64 编码将所有内容编码为安全的 ASCII 字符，完全绕过这些
 
 ---
 
-<a name="english"></a>
-# agent-file-control MCP Server (English)
+## 管理命令
 
-中文 | [English](#english)
-
-Complete file control MCP server built with Node.js/TypeScript. Uses base64 encoding to completely bypass JSON special character parsing issues.
-
-## Installation
+### Claude Code
 
 ```bash
-npm install agent-file-control-mcp-server
+# 查看服务器列表
+claude mcp list
+
+# 查看服务器详情
+claude mcp get agent-file-control
+
+# 删除服务器
+claude mcp remove agent-file-control -s user
+
+# 在 Claude Code 中检查状态
+/mcp
 ```
 
-Or build from source:
-
-```bash
-git clone https://github.com/LeenixP/agent-file-control-mcp-server.git
-cd agent-file-control-mcp-server
-npm install
-npm run build
-```
-
-## Usage
-
-### As stdio MCP server
-
-Add to your MCP configuration:
-
-```json
-{
-  "mcpServers": {
-    "agent-file-control": {
-      "command": "npx",
-      "args": ["agent-file-control-mcp-server"]
-    }
-  }
-}
-```
-
-Or use local path:
-
-```json
-{
-  "mcpServers": {
-    "agent-file-control": {
-      "command": "node",
-      "args": ["/path/to/agent-file-control-mcp-server/dist/index.js"]
-    }
-  }
-}
-```
-
-## Available Tools
-
-### File Operations
-
-| Tool | Description |
-|------|-------------|
-| `afc_write_file` | Write base64-encoded content to file |
-| `afc_append_file` | Append base64-encoded content to file |
-| `afc_read_file` | Read file contents (supports line ranges, base64 output) |
-| `afc_search_replace` | Search and replace in file (base64 encoded patterns) |
-| `afc_patch_lines` | Replace specific line range in file |
-
-### File Management
-
-| Tool | Description |
-|------|-------------|
-| `afc_file_info` | Get file/directory metadata |
-| `afc_list_dir` | List directory contents (recursive, filtering) |
-| `afc_copy` | Copy file or directory |
-| `afc_move` | Move/rename file or directory |
-| `afc_delete` | Delete file or directory |
-| `afc_mkdir` | Create directory |
-
-### Encoding Utilities
-
-| Tool | Description |
-|------|-------------|
-| `afc_encode_string` | Encode string to base64 |
-| `afc_decode_b64` | Decode base64 to string |
-
-## Base64 Encoding
-
-To generate base64 for file content:
-
-**Linux/Mac:**
-```bash
-echo -n 'content' | base64
-```
-
-**Node.js:**
-```javascript
-Buffer.from('content').toString('base64')
-```
-
-**Python:**
-```python
-import base64
-print(base64.b64encode(b'content').decode())
-```
-
-## Why Base64?
-
-OpenCode and other MCP clients transmit file content as JSON strings, which breaks when content contains:
-- JSON special characters (`"`, `\`, newlines)
-- Binary data
-- Complex code with quotes and escapes
-
-Base64 encoding completely bypasses these issues by encoding all content as safe ASCII characters.
+---
 
 ## License
 
