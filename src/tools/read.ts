@@ -13,6 +13,13 @@ import { formatError, pathNotFound, invalidLineRange, searchPatternNotFound } fr
 import { pathExists, isFile } from '../utils/path.js';
 import { generatePatchDiff } from '../utils/diff.js';
 
+function decodeContent(content: string, encoding: 'text' | 'base64'): [Buffer | string, string | null] {
+  if (encoding === 'base64') {
+    return decodeBase64(content);
+  }
+  return [content, null];
+}
+
 export function registerReadTools(server: McpServer): void {
   server.registerTool(
     'afc_read_file',
@@ -85,17 +92,23 @@ For line ranges: "# path lines X-Y" prefix is added`,
   server.registerTool(
     'afc_search_replace',
     {
-      title: 'Search and Replace in File (base64)',
-      description: `Search and replace content in a file. Both old and new content use base64 encoding to avoid JSON escaping issues.
+      title: 'Search and Replace in File',
+      description: `Search and replace content in a file.
+
+Two encoding modes:
+- old_encoding/new_encoding="text" (default): Plain text
+- old_encoding/new_encoding="base64": For special characters
 
 Args:
   - path: Target file absolute path
-  - old_b64: Content to search for (base64 encoded)
-  - new_b64: Replacement content (base64 encoded)
+  - old_text: Text to search for
+  - old_encoding: "text" or "base64" (default: "text")
+  - new_text: Replacement text
+  - new_encoding: "text" or "base64" (default: "text")
   - count: Number of replacements (-1 for all, 1 for first)
   - encoding: File encoding (default: utf-8)
 
-Returns: Success message with diff output showing changes, or error if pattern not found`,
+Returns: Success message with diff output, or error if pattern not found`,
       inputSchema: SearchReplaceSchema,
       annotations: {
         readOnlyHint: false,
@@ -105,10 +118,10 @@ Returns: Success message with diff output showing changes, or error if pattern n
       }
     },
     async (params: SearchReplaceInput) => {
-      const [oldRaw, oldErr] = decodeBase64(params.old_b64, 'old_b64');
+      const [oldRaw, oldErr] = decodeContent(params.old_text, params.old_encoding);
       if (oldErr) return { content: [{ type: 'text', text: oldErr }] };
 
-      const [newRaw, newErr] = decodeBase64(params.new_b64, 'new_b64');
+      const [newRaw, newErr] = decodeContent(params.new_text, params.new_encoding);
       if (newErr) return { content: [{ type: 'text', text: newErr }] };
 
       if (!pathExists(params.path)) {
@@ -117,8 +130,8 @@ Returns: Success message with diff output showing changes, or error if pattern n
 
       try {
         const original = fs.readFileSync(params.path, params.encoding as BufferEncoding);
-        const oldStr = oldRaw.toString(params.encoding as BufferEncoding);
-        const newStr = newRaw.toString(params.encoding as BufferEncoding);
+        const oldStr = typeof oldRaw === 'string' ? oldRaw : oldRaw.toString(params.encoding as BufferEncoding);
+        const newStr = typeof newRaw === 'string' ? newRaw : newRaw.toString(params.encoding as BufferEncoding);
 
         const occurrences = original.split(oldStr).length - 1;
         if (occurrences === 0) {
@@ -162,10 +175,11 @@ Returns: Success message with diff output showing changes, or error if pattern n
 
         fs.writeFileSync(params.path, result, { encoding: params.encoding as BufferEncoding });
 
+        const encNote = params.old_encoding === 'base64' || params.new_encoding === 'base64' ? ' [b64]' : '';
         return {
           content: [{
             type: 'text',
-            text: `OK: Replaced ${replaced}/${occurrences} occurrences in ${params.path}\n\nChanges:\n${diffOutput}${truncated}`
+            text: `OK: Replaced ${replaced}/${occurrences} occurrences in ${params.path}${encNote}\n\nChanges:\n${diffOutput}${truncated}`
           }]
         };
       } catch (e) {
@@ -177,19 +191,24 @@ Returns: Success message with diff output showing changes, or error if pattern n
   server.registerTool(
     'afc_patch_lines',
     {
-      title: 'Replace Line Range (base64)',
+      title: 'Replace Line Range',
       description: `Replace a specific line range in a file. Use afc_read_file to verify line numbers first.
+
+Two encoding modes:
+- content_encoding="text" (default): Plain text
+- content_encoding="base64": For special characters
 
 Args:
   - path: Target file absolute path
   - start_line: Start line number (1-based, inclusive)
   - end_line: End line number (1-based, inclusive)
-  - new_content_b64: Replacement content in base64 (can be multi-line)
+  - new_content: Replacement content (text or base64)
+  - content_encoding: "text" or "base64" (default: "text")
   - encoding: File encoding (default: utf-8)
 
-Note: If new_content_b64 doesn't end with newline, one is added automatically.
+Note: If new_content doesn't end with newline, one is added automatically.
 
-Returns: Success message with diff output showing what changed`,
+Returns: Success message with diff output`,
       inputSchema: PatchLinesSchema,
       annotations: {
         readOnlyHint: false,
@@ -199,7 +218,7 @@ Returns: Success message with diff output showing what changed`,
       }
     },
     async (params: PatchLinesInput) => {
-      const [newRaw, newErr] = decodeBase64(params.new_content_b64, 'new_content_b64');
+      const [newRaw, newErr] = decodeContent(params.new_content, params.content_encoding);
       if (newErr) return { content: [{ type: 'text', text: newErr }] };
 
       if (!pathExists(params.path)) {
@@ -224,7 +243,7 @@ Returns: Success message with diff output showing what changed`,
 
         const oldLines = lines.slice(start, end);
 
-        let newText = newRaw.toString(params.encoding as BufferEncoding);
+        let newText = typeof newRaw === 'string' ? newRaw : newRaw.toString(params.encoding as BufferEncoding);
         if (newText.length > 0 && !newText.endsWith('\n')) {
           newText += '\n';
         }
@@ -238,11 +257,12 @@ Returns: Success message with diff output showing what changed`,
 
         const oldCount = end - start;
         const newCount = newLines.length;
+        const encNote = params.content_encoding === 'base64' ? ' [b64]' : '';
 
         return {
           content: [{
             type: 'text',
-            text: `OK: Replaced ${params.path} lines ${params.start_line}-${params.end_line} (${oldCount} lines -> ${newCount} lines)\n\nChanges:\n${diffOutput}`
+            text: `OK: Replaced ${params.path} lines ${params.start_line}-${params.end_line} (${oldCount} lines -> ${newCount} lines)${encNote}\n\nChanges:\n${diffOutput}`
           }]
         };
       } catch (e) {

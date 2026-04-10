@@ -2,7 +2,7 @@
 
 English | [中文](README.md)
 
-Complete file control MCP server built with Node.js/TypeScript. Uses base64 encoding to completely bypass JSON special character parsing issues.
+Complete file control MCP server built with Node.js/TypeScript. Supports two content encoding modes for flexible file operations.
 
 ## Installation
 
@@ -13,14 +13,18 @@ npm install -g agent-file-control-mcp-server
 npx -y agent-file-control-mcp-server
 ```
 
-Or build from source:
+---
 
-```bash
-git clone https://github.com/LeenixP/agent-file-control-mcp-server.git
-cd agent-file-control-mcp-server
-npm install
-npm run build
-```
+## Core Feature: Dual Encoding Modes
+
+All write-type tools support two encoding modes:
+
+| Encoding Mode | Description | Use Case |
+|---------------|-------------|----------|
+| `text` (default) | Plain string, JSON-RPC auto-handles escaping | Most text files, simple content |
+| `base64` | Base64 encoded, bypasses all special character issues | Code with many quotes/escapes, binary files |
+
+**Recommendation**: Use `text` mode (default) for daily work, switch to `base64` for complex content.
 
 ---
 
@@ -44,10 +48,6 @@ Edit `~/.config/opencode/opencode.json`, add to `mcp` field:
 
 ### Claude Code Configuration
 
-Claude Code supports three configuration scopes:
-
-#### User Scope (Recommended, available in all projects)
-
 Edit `~/.claude.json`, add `mcpServers` field:
 
 ```json
@@ -69,138 +69,107 @@ Or use CLI:
 claude mcp add agent-file-control -- npx -y agent-file-control-mcp-server
 ```
 
-#### Project Scope (Team shared)
-
-Create `.mcp.json` in project root:
-
-```json
-{
-  "mcpServers": {
-    "agent-file-control": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "agent-file-control-mcp-server"],
-      "env": {}
-    }
-  }
-}
-```
-
-Or use CLI:
-
-```bash
-claude mcp add --scope project agent-file-control -- npx -y agent-file-control-mcp-server
-```
-
-#### Local Scope (Current project only)
-
-```bash
-claude mcp add --scope local agent-file-control -- npx -y agent-file-control-mcp-server
-```
-
-### Using Local Path (Development)
-
-```json
-{
-  "mcpServers": {
-    "agent-file-control": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["/path/to/agent-file-control-mcp-server/dist/index.js"],
-      "env": {}
-    }
-  }
-}
-```
-
----
-
-## Configuration File Locations
-
-| Client | User Scope | Project Scope | Local Scope |
-|--------|------------|---------------|-------------|
-| **OpenCode** | `~/.config/opencode/opencode.json` (mcp field) | Not supported | Not supported |
-| **Claude Code** | `~/.claude.json` (mcpServers) | Project root `.mcp.json` | `~/.claude.json` (projects field) |
-
 ---
 
 ## Available Tools
 
-### File Operations
+### File Writing
 
-| Tool | Description |
-|------|-------------|
-| `afc_write_file` | Write base64-encoded content to file |
-| `afc_append_file` | Append base64-encoded content to file |
-| `afc_read_file` | Read file contents (supports line ranges, base64 output) |
-| `afc_search_replace` | Search and replace in file (base64 encoded patterns) |
-| `afc_patch_lines` | Replace specific line range in file |
+| Tool | Parameters | Description |
+|------|------------|-------------|
+| `afc_write_file` | path, content, content_encoding, file_encoding, executable, create_dirs | Write file, dual encoding |
+| `afc_append_file` | path, content, content_encoding, create_if_missing | Append content, dual encoding |
+
+### File Editing
+
+| Tool | Parameters | Description |
+|------|------------|-------------|
+| `afc_search_replace` | path, old_text, old_encoding, new_text, new_encoding, count | Search and replace, dual encoding |
+| `afc_patch_lines` | path, start_line, end_line, new_content, content_encoding | Line range replacement, dual encoding |
+
+### File Reading
+
+| Tool | Parameters | Description |
+|------|------------|-------------|
+| `afc_read_file` | path, as_b64, encoding, start_line, end_line | Read file, can return base64 |
 
 ### File Management
 
-| Tool | Description |
-|------|-------------|
-| `afc_file_info` | Get file/directory metadata (size, permissions, line count) |
-| `afc_list_dir` | List directory contents (recursive, filtering) |
-| `afc_copy` | Copy file or directory |
-| `afc_move` | Move/rename file or directory |
-| `afc_delete` | Delete file or directory |
-| `afc_mkdir` | Create directory |
+| Tool | Parameters | Description |
+|------|------------|-------------|
+| `afc_file_info` | path | Get file/directory metadata |
+| `afc_list_dir` | path, recursive, max_depth, show_hidden, pattern | List directory contents |
+| `afc_copy` | src, dst, overwrite | Copy file or directory |
+| `afc_move` | src, dst, overwrite | Move/rename |
+| `afc_delete` | path, recursive | Delete file or directory |
+| `afc_mkdir` | path | Create directory |
 
 ### Encoding Utilities
 
-| Tool | Description |
-|------|-------------|
-| `afc_encode_string` | Encode string to base64 |
-| `afc_decode_b64` | Decode base64 to string |
+| Tool | Parameters | Description |
+|------|------------|-------------|
+| `afc_encode_string` | text | Encode string to base64 (Agent can call for complex content) |
+| `afc_decode_b64` | b64, encoding | Decode base64 to string |
 
 ---
 
-## Base64 Encoding Examples
+## Usage Examples
 
-To generate base64 for file content:
+### Default Mode (text) - Recommended
 
-**Linux/Mac:**
-```bash
-echo -n 'content' | base64
+```json
+// Write simple text
+{
+  "path": "/home/user/test.txt",
+  "content": "Hello World",
+  "content_encoding": "text"
+}
 ```
 
-**Node.js:**
-```javascript
-Buffer.from('content').toString('base64')
+### Base64 Mode - Complex Content
+
+When content contains many quotes or escape characters:
+
+```json
+// Write complex code
+{
+  "path": "/home/user/code.js",
+  "content": "Y29uc3QgeCA9ICJoZWxsbztcblxuY29uc29sZS5sb2coeCk7",
+  "content_encoding": "base64"
+}
 ```
 
-**Python:**
-```python
-import base64
-print(base64.b64encode(b'content').decode())
+Agent can call `afc_encode_string` to generate base64:
+
+```json
+{
+  "text": "const x = \"hello\";\nconsole.log(x);"
+}
+// Returns: Y29uc3QgeCA9ICJoZWxsbztcblxuY29uc29sZS5sb2coeCk7
 ```
 
 ---
 
-## Why Base64?
+## Why Dual Encoding?
 
-MCP clients transmit file content as JSON strings, which breaks when content contains:
-- JSON special characters (`"`, `\`, newlines)
-- Binary data
-- Complex code with quotes and escapes
+| Layer | Description |
+|-------|-------------|
+| **JSON-RPC Transport** | Auto-handles escaping, most cases don't need concern |
+| **Agent Internal Generation** | LLM may struggle with complex code, base64 as fallback |
 
-Base64 encoding completely bypasses these issues by encoding all content as safe ASCII characters.
+**Recommendation**:
+- Simple content → `text` mode (default)
+- Complex code (many quotes, template strings) → `base64` mode
+- Agent judges autonomously, calls `afc_encode_string` when needed
 
 ---
 
 ## Management Commands
 
-### Claude Code
-
 ```bash
-# List all servers
+# Claude Code
 claude mcp list
-
-# Get server details
 claude mcp get agent-file-control
-
-# Remove server
 claude mcp remove agent-file-control -s user
 
 # Check status in Claude Code

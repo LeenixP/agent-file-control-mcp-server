@@ -1,16 +1,20 @@
 import { z } from 'zod';
 
+const ContentEncodingSchema = z.enum(['text', 'base64']).default('text');
+
 export const WriteFileSchema = z.object({
   path: z.string().describe('Target file absolute path'),
-  content_b64: z.string().describe('File content in base64 encoding'),
+  content: z.string().describe('File content. Use content_encoding="text" for plain text, "base64" for encoded content'),
+  content_encoding: ContentEncodingSchema.describe('Content encoding: "text" (plain string, JSON-RPC auto-escapes) or "base64" (for special characters/binary)'),
   executable: z.boolean().default(false).describe('Set chmod +x permission'),
   create_dirs: z.boolean().default(true).describe('Auto-create parent directories'),
-  encoding: z.string().default('utf-8').describe('Text encoding (utf-8 by default; use "binary" for binary files)')
+  file_encoding: z.string().default('utf-8').describe('File text encoding (utf-8, binary, etc.)')
 }).strict();
 
 export const AppendFileSchema = z.object({
   path: z.string().describe('Target file absolute path'),
-  content_b64: z.string().describe('Content to append in base64 encoding'),
+  content: z.string().describe('Content to append'),
+  content_encoding: ContentEncodingSchema.describe('Content encoding: "text" or "base64"'),
   create_if_missing: z.boolean().default(true).describe('Create file if it does not exist')
 }).strict();
 
@@ -24,8 +28,10 @@ export const ReadFileSchema = z.object({
 
 export const SearchReplaceSchema = z.object({
   path: z.string().describe('Target file absolute path'),
-  old_b64: z.string().describe('Content to search for (base64 encoded)'),
-  new_b64: z.string().describe('Replacement content (base64 encoded)'),
+  old_text: z.string().describe('Text to search for'),
+  old_encoding: ContentEncodingSchema.describe('Old text encoding: "text" or "base64"'),
+  new_text: z.string().describe('Replacement text'),
+  new_encoding: ContentEncodingSchema.describe('New text encoding: "text" or "base64"'),
   count: z.number().int().default(-1).describe('Number of replacements (-1 for all, 1 for first occurrence)'),
   encoding: z.string().default('utf-8').describe('File encoding')
 }).strict();
@@ -34,7 +40,8 @@ export const PatchLinesSchema = z.object({
   path: z.string().describe('Target file absolute path'),
   start_line: z.number().int().min(1).describe('Start line number (1-based, inclusive)'),
   end_line: z.number().int().min(1).describe('End line number (1-based, inclusive)'),
-  new_content_b64: z.string().describe('Replacement content in base64 (can be multi-line)'),
+  new_content: z.string().describe('Replacement content (can be multi-line)'),
+  content_encoding: ContentEncodingSchema.describe('Content encoding: "text" or "base64"'),
   encoding: z.string().default('utf-8').describe('File encoding')
 }).strict();
 
