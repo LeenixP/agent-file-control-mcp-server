@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+env:
+  PACKAGE_NAME: agent-file-control-mcp-server
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -26,7 +29,32 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check version not already published
+        id: version-check
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          echo "Package version: $PACKAGE_VERSION"
+          
+          # Check if version exists in npm registry
+          NPM_VERSION=$(npm view ${{ env.PACKAGE_NAME }} version 2>/dev/null || echo "none")
+          echo "NPM published version: $NPM_VERSION"
+          
+          if [ "$PACKAGE_VERSION" == "$NPM_VERSION" ]; then
+            echo "::error::Version $PACKAGE_VERSION is already published to npm."
+            echo "Please update the version in package.json or use a different tag."
+            exit 1
+          fi
+          
+          echo "version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Publish to npm
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "✅ Successfully published ${{ env.PACKAGE_NAME }}@${{ steps.version-check.outputs.version }}"
+          echo "📦 View at: https://www.npmjs.com/package/${{ env.PACKAGE_NAME }}"

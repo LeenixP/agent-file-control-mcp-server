@@ -1,6 +1,6 @@
 {
   "name": "agent-file-control-mcp-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "MCP server for complete file control with base64 encoding to bypass JSON parsing issues",
   "type": "module",
   "main": "dist/index.js",
