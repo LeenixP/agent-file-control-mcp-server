@@ -2,7 +2,7 @@
 
 English | [中文](README.md)
 
-Complete file control MCP server built with Node.js/TypeScript. Supports two content encoding modes for flexible file operations.
+Complete file control MCP server built with Node.js/TypeScript. Supports three content writing modes for flexible file operations, including Unicode character handling.
 
 ## Installation
 
@@ -15,16 +15,28 @@ npx -y agent-file-control-mcp-server
 
 ---
 
-## Core Feature: Dual Encoding Modes
+## Core Feature: Three Writing Modes
 
-All write-type tools support two encoding modes:
+All write-type tools support three encoding modes:
 
-| Encoding Mode | Description | Use Case |
-|---------------|-------------|----------|
-| `text` (default) | Plain string, JSON-RPC auto-handles escaping | Most text files, simple content |
-| `base64` | Base64 encoded, bypasses all special character issues | Code with many quotes/escapes, binary files |
+| Encoding Mode | Tool | Use Case |
+|---------------|------|----------|
+| `text` (default) | `afc_write_file` | Simple text, no special characters |
+| `base64` | `afc_write_file` + `afc_encode_string` | Complex code (many quotes/escapes), but **cannot solve Unicode issues** |
+| **Generator Mode** | `afc_write_generated` | **Code with Unicode characters (Recommended)** |
 
-**Recommendation**: Use `text` mode (default) for daily work, switch to `base64` for complex content.
+### ⚠️ Unicode Character Problem
+
+Unicode characters in Go/Python/TypeScript code (e.g., `\u25cf` → `●`, `\u2713` → `✓`) have issues during JSON-RPC transmission:
+
+**Root Cause:**
+- Agent generates `"value": "●"` → JSON serialization → `"value": "\\u25cf"` → incorrect file content
+- Base64 mode cannot solve this because the problem occurs at JSON serialization stage, not transmission
+
+**Solution: Generator Mode**
+- Agent only passes simple key-value parameters (e.g., `{ "name": "radioOn", "value": "●" }`)
+- MCP server generates file content internally
+- Completely bypasses JSON serialization issues
 
 ---
 
@@ -73,12 +85,19 @@ claude mcp add agent-file-control -- npx -y agent-file-control-mcp-server
 
 ## Available Tools
 
+### File Generators (Priority)
+
+| Tool | Parameters | Description |
+|------|------------|-------------|
+| `afc_write_generated` | path, generator, input, executable, create_dirs | Create file using generator, supports Unicode |
+| `afc_list_generators` | detailed | List all available generators with details |
+
 ### File Writing
 
 | Tool | Parameters | Description |
 |------|------------|-------------|
-| `afc_write_file` | path, content, content_encoding, file_encoding, executable, create_dirs | Write file, dual encoding |
-| `afc_append_file` | path, content, content_encoding, create_if_missing | Append content, dual encoding |
+| `afc_write_file` | path, content, content_encoding, file_encoding, executable, create_dirs | Write file, text/base64 encoding |
+| `afc_append_file` | path, content, content_encoding, create_if_missing | Append content, text/base64 encoding |
 
 ### File Editing
 
@@ -108,14 +127,85 @@ claude mcp add agent-file-control -- npx -y agent-file-control-mcp-server
 
 | Tool | Parameters | Description |
 |------|------------|-------------|
-| `afc_encode_string` | text | Encode string to base64 (Agent can call for complex content) |
+| `afc_encode_string` | text | Encode string to base64 (for complex code, no Unicode) |
 | `afc_decode_b64` | b64, encoding | Decode base64 to string |
+
+---
+
+## Built-in Generators
+
+| Generator | Purpose | Input Parameters |
+|-----------|---------|------------------|
+| `go-constants` | Go constant definitions (**Unicode support**) | package, constants (array) |
+| `go-struct` | Go struct + JSON tags | package, structName, fields (array) |
+| `go-interface` | Go interface definitions | package, interfaceName, methods (array) |
+| `python-constants` | Python constants | constants (array) |
+| `python-class` | Python class + `__init__` | className, fields (array) |
+| `typescript-interface` | TypeScript interfaces | interfaceName, fields (array) |
+| `typescript-constants` | TypeScript constants | constants (array) |
+| `json-config` | JSON configuration files | data (object) |
+| `yaml-config` | YAML configuration files | data (object) |
+| `shell-script` | Shell scripts (auto executable) | commands (array) |
+| `dockerfile` | Dockerfile (multi-stage support) | stages (array) |
+| `gitignore` | .gitignore (language presets) | language |
+| `html-template` | HTML documents | title, body (array) |
+| `css-styles` | CSS stylesheets | rules (array) |
+| `markdown-doc` | Markdown documents | title, sections (array) |
+
+View generator details: call `afc_list_generators(detailed=true)`
 
 ---
 
 ## Usage Examples
 
-### Default Mode (text) - Recommended
+### Generator Mode - Unicode Characters (Recommended)
+
+```json
+// Generate Go constants file with Unicode symbols
+{
+  "path": "/path/to/styles.go",
+  "generator": "go-constants",
+  "input": {
+    "package": "tui",
+    "constants": [
+      { "name": "radioOn", "value": "●", "comment": "Selected" },
+      { "name": "radioOff", "value": "○", "comment": "Unselected" },
+      { "name": "cursorStr", "value": "▸ " },
+      { "name": "checkMark", "value": "✓" }
+    ]
+  }
+}
+
+// Generated file content:
+// package tui
+// 
+// const (
+//     radioOn   = "●" // Selected
+//     radioOff  = "○" // Unselected
+//     cursorStr = "▸ "
+//     checkMark = "✓"
+// )
+```
+
+### Generator Mode - Structs
+
+```json
+// Generate Go struct
+{
+  "path": "/path/to/config.go",
+  "generator": "go-struct",
+  "input": {
+    "package": "config",
+    "structName": "Server",
+    "fields": [
+      { "name": "Host", "type": "string", "jsonTag": "host" },
+      { "name": "Port", "type": "int", "jsonTag": "port" }
+    ]
+  }
+}
+```
+
+### Text Mode - Simple Text
 
 ```json
 // Write simple text
@@ -126,22 +216,17 @@ claude mcp add agent-file-control -- npx -y agent-file-control-mcp-server
 }
 ```
 
-### Base64 Mode - Complex Content
-
-When content contains many quotes or escape characters:
+### Base64 Mode - Complex Code (No Unicode)
 
 ```json
-// Write complex code
+// Write complex JavaScript code
 {
   "path": "/home/user/code.js",
   "content": "Y29uc3QgeCA9ICJoZWxsbztcblxuY29uc29sZS5sb2coeCk7",
   "content_encoding": "base64"
 }
-```
 
-Agent can call `afc_encode_string` to generate base64:
-
-```json
+// First call afc_encode_string to generate base64:
 {
   "text": "const x = \"hello\";\nconsole.log(x);"
 }
@@ -150,17 +235,33 @@ Agent can call `afc_encode_string` to generate base64:
 
 ---
 
-## Why Dual Encoding?
+## Mode Selection Guide
 
-| Layer | Description |
-|-------|-------------|
-| **JSON-RPC Transport** | Auto-handles escaping, most cases don't need concern |
-| **Agent Internal Generation** | LLM may struggle with complex code, base64 as fallback |
+| Scenario | Recommended Mode | Tool |
+|----------|------------------|------|
+| **Go/Python/TS constants/classes/interfaces** | Generator | `afc_write_generated` |
+| **Contains Unicode characters** | Generator | `afc_write_generated` |
+| Simple text | text | `afc_write_file(content_encoding="text")` |
+| Complex code without Unicode | base64 | `afc_write_file(content_encoding="base64")` |
+| Precise line editing | text | `afc_patch_lines` |
+| Configuration files | Generator | `afc_write_generated(generator="json-config/yaml-config")` |
 
-**Recommendation**:
-- Simple content → `text` mode (default)
-- Complex code (many quotes, template strings) → `base64` mode
-- Agent judges autonomously, calls `afc_encode_string` when needed
+---
+
+## How Generators Work
+
+```
+Agent calls afc_write_generated({ generator: "go-constants", input: {...} })
+    ↓
+MCP server receives parameters, generates file content internally
+    ↓
+Directly writes to file (bypassing JSON serialization)
+```
+
+**Key Benefits:**
+- Agent only passes simple key-value data
+- MCP server handles complex content generation internally
+- Unicode characters written directly to file, no escaping issues
 
 ---
 
