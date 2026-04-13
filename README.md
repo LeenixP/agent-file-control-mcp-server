@@ -60,7 +60,7 @@ Go/Python/TypeScript 代码中的 Unicode 字符（如 `\u25cf` → `●`、`\u2
 
 ### Claude Code 配置
 
-编辑 `~/.claude.json`，添加 `mcpServers` 字段：
+编辑 `~/.claude.json` 或 `~/.mcp.json`，添加 `mcpServers` 字段：
 
 ```json
 {
